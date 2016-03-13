@@ -1,0 +1,112 @@
+---
+title: 'Data 607 Project 2A: Country Imports and Exports'
+author: "Armenoush Aslanian-Persico"
+output:
+  html_document:
+    highlight: tango
+    theme: cerulean
+  pdf_document: default
+---
+
+# Introduction
+### The US Census compiles data for exports, imports, and balances of goods for countries and groups of countries globally. This dataset has data back to 2009. Select years and countries are chosen for analysis below.
+
+# Load packages.
+```{r}
+library(knitr)
+library(stringr)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(RCurl)
+```
+
+
+# Import CSV, column header = True.
+## Source: https://www.census.gov/foreign-trade/statistics/country/index.html
+```{r}
+rawgoods<-data.frame(read.csv(file="ctyseasonal.csv", header=T, stringsAsFactors = FALSE))
+```
+
+#Take subset of countries and years.
+```{r}
+
+goods<-subset(rawgoods, CTYNAME== "China" | CTYNAME=="Germany" | CTYNAME=="Canada" | CTYNAME=="Mexico" | CTYNAME == "Japan")
+
+goods<-subset(goods, year==2014 | year==2015)
+
+goods<-subset(goods[,c(1:3,20:31,36:47)] )
+
+kable(head(goods,10))
+```
+
+#Reshape data, separate column, convert month abbreviations to numbers.
+```{r}
+
+goods<- gather(goods,"Month","Volume", 4:27)
+str(goods) #check structure
+
+goods<-separate(goods,Month, into = c("Type", "Month"), sep = 1)
+
+goods$Volume<-as.numeric(gsub(",", "",goods$Volume))
+
+goods$Month<-gsub("JAN","01",goods$Month)
+goods$Month<-gsub("FEB","02",goods$Month)
+goods$Month<-gsub("MAR","03",goods$Month)
+goods$Month<-gsub("APR","04",goods$Month)
+goods$Month<-gsub("MAY","05",goods$Month)
+goods$Month<-gsub("JUN","06",goods$Month)
+goods$Month<-gsub("JUL","07",goods$Month)
+goods$Month<-gsub("AUG","08",goods$Month)
+goods$Month<-gsub("SEP","09",goods$Month)
+goods$Month<-gsub("OCT","10",goods$Month)
+goods$Month<-gsub("NOV","11",goods$Month)
+goods$Month<-gsub("DEC","12",goods$Month)
+str(goods) #check structur
+
+kable(head(goods))
+```
+
+#Reshape data to create columns for Exports/Imports.
+```{r}
+
+goods<-spread(goods,Type,Volume)
+
+kable(head(goods))
+```
+
+#Add column for YYYY-MM
+```{r}
+goods$ymdate<-paste(goods$year, goods$Month, sep="-")
+goods<-mutate(goods,ymdate)
+
+kable(head(goods))
+
+
+```
+
+#Show plots.
+```{r}
+ggplot(
+  goods, aes(x = ymdate, y = E)) + 
+  geom_bar(stat = "identity",fill="#00ffbf",color="black", width = 0.8) +
+  ggtitle("Exports by Month in 2014 and 2015")+ 
+  facet_wrap(~ CTYNAME) +  
+  theme(panel.grid.minor.x=element_blank(), panel.grid.major.x=element_blank(),axis.text=element_text(angle=90)) +
+  scale_y_continuous(breaks=seq(0,40000,20000))+
+  labs(x="Year and Month",y="Millions of Dollars") 
+
+
+
+ggplot(
+  goods, aes(x = ymdate, y = I)) + 
+  geom_bar(stat = "identity",fill="blue",color="black", width = 0.8) +
+  ggtitle("Imports by Month in 2014 and 2015") + 
+  facet_wrap(~ CTYNAME) +  
+  theme(panel.grid.minor.x=element_blank(), panel.grid.major.x=element_blank(),axis.text=element_text(angle=90)) +
+  scale_y_continuous(breaks=seq(0,40000,20000))+
+  labs(x="Year and Month",y="Millions of Dollars") 
+```
+
+# Conclusion
+### China had the most imports between January 2014 and December 2015. Canada had the most exports for this time period, more than twice China's exports. Canada and China showed a similar dip in exports in early 2015. However, China had an outlier month for imports in March 2015 which was not mirrored by the other countries chosen. Othewrise, exports and imports for any chosen country showed parallel trends.

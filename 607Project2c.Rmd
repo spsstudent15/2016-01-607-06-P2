@@ -1,0 +1,190 @@
+---
+title: "Data 607 Project 2C: New York City's Leading Causes of Death"
+author: "Armenoush Aslanian-Persico"
+output:
+  html_document:
+    highlight: tango
+    theme: cerulean
+  pdf_document: default
+---
+
+# Introduction
+### The New York City Department of Health collects data on causes of death by ethnicity and age group. This dataset is from 2007 to 2011. "Malignant neoplasm" is another term for cancer.
+
+### Questions for analysis:
+#### 1. Show the leading causes of death each year for men and women.
+#### 2. Show the leading causes of death each year for each ethnic group.
+#### 3. Calculate which cause of death has declined the most and which has increased the most in the years given.
+#### 4. Calculate which cause of death has remained stable over the years given.
+
+
+
+# Load packages.
+```{r}
+library(knitr)
+library(stringr)
+library(tidyr)
+library(plyr)
+library(dplyr)
+library(ggplot2)
+library(RCurl)
+```
+
+
+# Import CSV, column header = True, remove duplicate rows, convert to numeric.
+## Source: https://data.cityofnewyork.us/Health/New-York-City-Leading-Causes-of-Death/jb7j-dtam
+
+```{r}
+causes<-data.frame(read.csv(file="causes.csv", header=T, stringsAsFactors = FALSE))
+
+causes<- unique(causes)
+kable(head(causes))
+
+str(causes) #test
+causes$Percent<-as.numeric(causes$Percent)
+```
+
+
+# Show the leading causes of death each year for men and women.
+```{r}
+causes %>%
+  group_by(Year, Sex) %>%
+  arrange(desc(Percent)) %>%
+  filter(Percent == max(Percent)) %>%
+  kable
+```
+
+# Show the leading causes of death each year for each ethnic group.
+## >> Group by Ethnicity, Year, Sex.
+```{r}
+causes %>%
+  group_by(Ethnicity, Year, Sex) %>%
+  filter(Percent == max(Percent)) %>%
+  arrange(Ethnicity, Year) %>%
+  head %>%
+  kable
+```
+
+## >> Calculate total population per group from Count and Percent.
+```{r}
+
+ecauses<-mutate(causes, TotalPop=(100*Count/Percent))
+ecauses <- subset(ecauses, Percent > 0)
+ecauses <- subset(ecauses[, c(1:5,7)])
+kable(head(ecauses)) #test
+
+```
+
+## >> Combine genders, summarize by Count and Total Population, create new Percent column.
+```{r}
+
+ecauses2<-ddply(ecauses, c("Ethnicity", "Year","Cause.of.Death"), summarize, Count = sum(Count), TotalPop=sum(TotalPop))
+
+ecauses2<-mutate(ecauses2, Percent2=(Count/TotalPop*100))
+ecauses2$TotalPop<-round(ecauses2$TotalPop, digits=0)
+ecauses2$Percent2<-round(ecauses2$Percent2, digits=1)
+kable(head(ecauses2)) #test
+
+```
+
+## >> Take max percent value to show leading cause of death each year.
+```{r}
+ecauses2 %>%
+  group_by(Ethnicity, Year) %>%
+  filter(Percent2 == max(Percent2)) %>%
+  kable
+```
+
+# Calculate which cause of death has most declined, increased, or remained stable in the years given.
+## >> Group by Year, Cause; combine Total Population column, add calculated column for percent.
+```{r}
+
+
+ecauses2<-ddply(ecauses2, c("Year","Cause.of.Death"), summarize, Count = sum(Count), TotalPop=sum(TotalPop))
+
+ecauses2 <- subset(ecauses2, Year == 2007 | Year == 2011)
+ecauses2<-mutate(ecauses2, Percent2=(Count/TotalPop*100))
+
+```
+
+## >> Subset needed columns.
+```{r}
+ecauses2 <- subset(ecauses2[, c(1,2,5)])
+kable(head(ecauses2))
+
+```
+
+## >> Reshape data to compare years.
+```{r}
+ecauses2<-spread(ecauses2,Year,Percent2)
+#kable(ecauses2) #test
+```
+
+## >> Rename columns; subset needed years; remove causes which have NA values and therefore cannot be compared across beginning and end years.
+```{r}
+colnames(ecauses2)<-c("Cause","P2007","P2011")
+
+#kable(ecauses2) #test
+ecauses2 <- subset(ecauses2, P2007>0)
+ecauses2 <- subset(ecauses2, P2011>0)
+ecauses2$P2007<-round(ecauses2$P2007, digits=3)
+ecauses2$P2011<-round(ecauses2$P2011, digits=3)
+#kable(ecauses2) #test
+
+```
+
+## >> Add column for percent change of percent.
+```{r}
+ecauses2<-mutate(ecauses2, PercentChange=((P2011-P2007)/P2007*100))
+
+ecauses2["Abbrev"] <- NA
+ecauses2$Abbrev<-c(
+  "ACCD",
+  "ALZ",
+  "HOMICIDE",
+  "BENIGN NEOPL",
+  "BRAIN",
+  "LIVER",
+  "RESPIR",
+  "DEFORM",
+  "DIABETES",
+  "HEART",
+  "HYPERT",
+  "HIV",
+  "FLU",
+  "SUICIDE",
+  "CANCER",
+  "ALCOHOL",
+  "NEPHRITIS",
+  "DRUGS",
+  "SEPTICEMIA",
+  "HEP")
+
+ecauses2 %>%
+  arrange(desc(PercentChange)) %>%
+  kable
+
+```
+
+
+
+## >> Show plot.
+```{r}
+ggplot(
+  ecauses2, aes(x = reorder(Abbrev,-PercentChange), y = PercentChange, fill=PercentChange)) + 
+  geom_bar(stat="identity") +
+  ggtitle("NYC Causes of Death, 2007 vs. 2011")+ 
+  theme(axis.text=element_text(angle=60))+
+  labs(x="Cause of Death",y="Percent Change")
+
+
+
+```
+
+# Conclusion
+### Between 2007 and 2011 in New York City, Alzheimer's and respiratory illnesses increased the most as causes of death. HIV and heart problems decreased the most. Alcohol abuse, bening neoplasms, deformities, nephritis, and septicemia had the least change. We have better medicine for heart disease and HIV, but there is still no known cure for Alzheimer's.
+
+# Author's Note
+### This ggplot took way too long.
+
+ 

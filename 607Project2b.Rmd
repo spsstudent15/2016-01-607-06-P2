@@ -1,0 +1,101 @@
+---
+title: "Data 607 Project 2B: New York State Electricity Auctions"
+author: "Armenoush Aslanian-Persico"
+output:
+  html_document:
+    highlight: tango
+    theme: cerulean
+  pdf_document: default
+---
+
+# Introduction
+### The New York Independent System Operator is a non-profit that manages New York State's electricity grid and administers electricity markets through auctions. This data from NYISO shows auction results for a six-month period between November 2015 and April 2016.
+
+# Load packages.
+```{r}
+library(knitr)
+library(stringr)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(RCurl)
+```
+
+
+# Import CSV, column header = True.
+## Source: http://icap.nyiso.com/ucap/public/auc_view_monthly_detail.do
+## Season: Winter 2015-2016
+```{r}
+auction<-data.frame(read.csv(file="auction.csv", header=T, stringsAsFactors = FALSE))
+kable(auction)
+
+#str(auction) #test
+
+```
+
+# Remove dollar sign, convert to numeric.
+```{r}
+auction<-as.data.frame(lapply(auction, function(y) gsub("\\$", "", y)))
+auction[, c(3:7)] <- sapply(auction[, c(3:7)], as.character)
+auction[, c(3:7)] <- sapply(auction[, c(3:7)], as.numeric)
+kable(auction)
+str(auction)
+```
+ 
+
+# Subset of just non-zero rows.
+```{r}
+auction <- subset(auction[c(1:10),])
+kable(auction)
+```
+ 
+
+# Rename columns.
+```{r}
+colnames(auction)[c(3:8)] <- c("2015-11","2015-12","2016-01","2016-02","2016-03","2016-04")
+kable(auction)
+```
+ 
+
+# Reshape data to create month rows.
+```{r}
+auction<-gather(auction,"Result","Amount",3:8)
+colnames(auction)[c(3)] <- c("Month")
+kable(auction)
+```
+ 
+# Reshape data to create result columns.
+```{r}
+auction<-spread(auction,Result,Amount)
+colnames(auction)[c(3,4)] <- c("Awarded","Price")
+str(auction)
+auction[, c(3:4)] <- sapply(auction[, c(3:4)], as.numeric)
+str(auction)
+kable(auction)
+```
+
+#Show plots.
+```{r}
+ggplot(
+  auction, aes(x = Month, y = Awarded, fill=Bidder)) + 
+  geom_bar(stat="identity", position="dodge") + scale_fill_brewer()+
+  ggtitle("Awarded Megawatts by Bidder")+ 
+  
+  theme(panel.grid.minor.x=element_blank(), panel.grid.major.x=element_blank(),axis.text=element_text(angle=0))+
+  
+  labs(x="Year and Month",y="Awarded Megawatts")
+
+ggplot(
+  auction, aes(x = Month, y = Price, fill=Bidder)) + 
+  geom_bar(stat="identity", position="dodge") + scale_fill_brewer()+
+  ggtitle("Price per KW by Bidder")+ 
+  
+  theme(panel.grid.minor.x=element_blank(), panel.grid.major.x=element_blank(),axis.text=element_text(angle=0))+
+  
+  labs(x="Year and Month",y="Price in $")
+```
+
+# Conclusion
+### The New York Control Area (NYCA) had an outlier in November 2015 with a significantly higher amount of awarded megawatts. The NYCA consistently received the largest amount of awarded megawatts. Hyrdo-Quebec (HQ) had few to no awarded megawatts between December 2015 and April 2016. Price per KW was more stable for each locality, with NYC registering prices double or triple the other zone bidders.
+
+ 
